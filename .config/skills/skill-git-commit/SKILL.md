@@ -141,8 +141,6 @@ By default, exclude:
 
 * `docs/change-analysis/*`
 * `docs/reviews/*-skill-review.md`
-* `.ai/file_changes.sqlite`
-* `.ai/*`
 * temporary logs
 * IDE metadata
 * build outputs
@@ -187,12 +185,6 @@ The only allowed write/delete actions are:
 1. Staging files for commit.
 2. Creating the Git commit.
 3. Deleting the exact review Markdown report used as input after a successful commit.
-
-### Do Not Use SQLite for Commit Scope
-
-Do not use `.ai/file_changes.sqlite` as the source of truth for the commit.
-
-This skill uses Git modified files, not the SQLite tracking database.
 
 ### Read the Review Report Before Committing
 
@@ -259,7 +251,7 @@ git diff
 ```
 
 8. Identify commit-worthy files.
-9. Exclude temporary analysis files and SQLite tracking files.
+9. Exclude temporary analysis files.
 10. Generate a commit message.
 11. Stage the selected files explicitly.
 12. Show the staged diff summary:

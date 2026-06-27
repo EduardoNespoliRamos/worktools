@@ -1,7 +1,7 @@
 ---
 
 name: skill-test-implementation
-description: Inspect the local SQLite change-tracking database, identify modified production code files, and implement or improve tests for those files. Prefer functional tests, target 80% coverage, avoid unnecessary complex mocks, and never introduce new test libraries without confirming they already exist in the project or asking the user.
+description: Inspect Git diff, identify modified production code files, and implement or improve tests for those files. Prefer functional tests, target 80% coverage, avoid unnecessary complex mocks, and never introduce new test libraries without confirming they already exist in the project or asking the user.
 compatibility: opencode
 -----------------------
 
@@ -11,13 +11,13 @@ compatibility: opencode
 
 You are a test implementation assistant.
 
-Your job is to inspect the local SQLite change-tracking database, identify modified production code files, and create or improve tests for the changed code.
+Your job is to inspect Git diff, identify modified production code files, and create or improve tests for the changed code.
 
 You must focus on meaningful behavior coverage, not superficial line coverage.
 
 ## Primary Goal
 
-For every modified production code file registered in the SQLite database:
+For every modified production code file from Git diff:
 
 1. Identify whether there are existing tests related to that file.
 2. Improve existing tests when possible.
@@ -29,35 +29,24 @@ For every modified production code file registered in the SQLite database:
 
 ## Primary Source of Truth
 
-The source of truth for changed files is the SQLite database:
+The source of truth for changed files is Git.
 
-`.ai/file_changes.sqlite`
+Use these commands:
 
-Use this table when available:
-
-* `changed_files`
-
-Primary query:
-
-```sql
-SELECT file_path, project_dir, first_seen_at, last_seen_at, change_count, git_branch, git_status, file_hash
-FROM changed_files
-ORDER BY last_seen_at DESC;
+```bash
+git status --short
+git diff --name-only
 ```
 
-Do not use Git as the primary source of changed files.
-
-Git may be used only as supporting context after the database list is loaded.
+Do not depend on an external database or file tracker. Git is the authoritative source.
 
 ## Important Rules
 
-### Use SQLite to Find Modified Files
+### Use Git to Find Modified Files
 
-Always start from `.ai/file_changes.sqlite`.
+Always start from `git status --short` and `git diff --name-only`.
 
-Only consider files listed in the database.
-
-Do not use `git status`, `git diff --name-only`, or similar commands as the main source of changed files.
+Only consider files shown as modified by Git.
 
 ### Only Implement or Modify Tests
 
@@ -215,17 +204,13 @@ If tests were added but coverage was not run, say so clearly.
 
 ### Handle Large or Non-Reviewable Files
 
-If a file listed in SQLite is too large, generated, binary, missing, unreadable, or not useful for test implementation, skip it.
+If a file from Git is too large, generated, binary, missing, unreadable, or not useful for test implementation, skip it.
 
 A file should be considered large if:
 
 * it is larger than 300 KB, or
 * it has more than 1,500 lines, or
 * it appears generated, binary, minified, vendored, compiled, or lockfile-like
-
-Do not delete skipped files from SQLite unless the user explicitly asks.
-
-This skill is not responsible for SQLite cleanup.
 
 ### Identify Production Code Files
 
@@ -288,12 +273,11 @@ Do not invent a new test layout if the project already has one.
 
 1. Identify the project root.
 2. Read `AGENTS.md` if present.
-3. Open `.ai/file_changes.sqlite`.
-4. Query the `changed_files` table.
-5. Build a list of changed files from SQLite.
-6. Filter the list to production code files only.
-7. Skip files that are generated, binary, missing, unreadable, too large, or not useful for test implementation.
-8. Inspect the project’s existing test conventions:
+3. Run `git status --short` and `git diff --name-only`.
+4. Build a list of changed files from Git.
+5. Filter the list to production code files only.
+6. Skip files that are generated, binary, missing, unreadable, too large, or not useful for test implementation.
+7. Inspect the project's existing test conventions:
 
    * existing test directories
    * naming patterns
@@ -302,32 +286,18 @@ Do not invent a new test layout if the project already has one.
    * mocking library
    * functional/integration test support
    * coverage tool
-9. For each changed production code file:
+8. For each changed production code file:
 
-   * read the file
+   * read the file or its git diff
    * understand the changed or relevant behavior
    * find related existing tests
    * decide whether to add a new test or update existing tests
-10. Prefer functional tests when practical.
-11. Avoid complex mocks.
-12. If a test cannot be safely implemented, add a clear TODO/comment in the closest relevant test file or create a minimal test placeholder only if that matches project conventions.
-13. Run relevant tests if possible using existing project commands.
-14. Run coverage only if an existing coverage tool/command is available.
-15. Summarize what was implemented and what remains.
-
-## SQLite Usage Guidance
-
-Primary query:
-
-```sql
-SELECT file_path, project_dir, first_seen_at, last_seen_at, change_count, git_branch, git_status, file_hash
-FROM changed_files
-ORDER BY last_seen_at DESC;
-```
-
-Do not reset or modify SQLite.
-
-This skill reads from SQLite only.
+9. Prefer functional tests when practical.
+10. Avoid complex mocks.
+11. If a test cannot be safely implemented, add a clear TODO/comment in the closest relevant test file or create a minimal test placeholder only if that matches project conventions.
+12. Run relevant tests if possible using existing project commands.
+13. Run coverage only if an existing coverage tool/command is available.
+14. Summarize what was implemented and what remains.
 
 ## Test Discovery Guidance
 
@@ -349,7 +319,7 @@ Use project-specific commands only after identifying the project type and existi
 
 At the end, respond with:
 
-* number of files found in SQLite
+* number of changed files found in Git
 * number of production code files selected
 * number of files skipped
 * tests created

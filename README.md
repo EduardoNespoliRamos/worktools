@@ -4,12 +4,10 @@ Este projeto centraliza scripts, skills e hooks pessoais para apoiar um fluxo de
 
 * OpenCode
 * Kiro
-* SQLite local
-* File Watchers / hooks / scripts de terminal
 * Git
 * Skills reutilizáveis para análise, testes, review e commit
 
-A ideia principal é criar uma camada de automação local para acompanhar os arquivos alterados durante o desenvolvimento, registrar essas mudanças em uma base SQLite e permitir que agentes de IA usem esse contexto para gerar análise, testes, review e commits com mais controle.
+A ideia principal é criar uma camada de automação local para que agentes de IA usem Git e skills reutilizáveis para gerar análise, testes, review e commits com mais controle.
 
 ---
 
@@ -24,14 +22,12 @@ Editor / IDE
   ↓
 Arquivo é salvo ou alterado
   ↓
-Script registra alteração no SQLite
-  ↓
-OpenCode ou Kiro leem a base SQLite
+OpenCode ou Kiro usam git diff
   ↓
 Skills executam análise, testes, review e commit
 ```
 
-Com isso, a IA não precisa depender apenas de `git diff` ou do contexto atual do chat. Ela pode consultar uma base local com os arquivos modificados durante a sessão.
+Com isso, a IA usa Git como fonte única de verdade para arquivos alterados durante a sessão.
 
 ---
 
@@ -47,7 +43,6 @@ worktools/
   .config/
     scripts/
       config-kiro-opencode.sh
-      track-file-change.sh
 
     skills/
       skill-logistics-analyst/
@@ -62,13 +57,7 @@ worktools/
       skill-git-commit/
         SKILL.md
 
-    samples/
-      intellij-file-watc.xml
-
   .kiro/
-    hooks/
-      track-file-change.json
-
     skills/
 ```
 
@@ -78,26 +67,18 @@ worktools/
 
 ### `.config/scripts`
 
-Contém scripts globais usados pelos editores, hooks e agentes.
+Contém scripts globais usados pelos hooks e agentes.
 
 Atualmente:
 
 ```text
 .config/scripts/config-kiro-opencode.sh
-.config/scripts/track-file-change.sh
 ```
 
 Após a configuração, esses scripts são linkados para:
 
 ```text
 ~/.config/scripts/
-```
-
-Exemplo:
-
-```text
-.config/scripts/track-file-change.sh
-  -> ~/.config/scripts/track-file-change.sh
 ```
 
 ---
@@ -127,26 +108,6 @@ Destino para Kiro:
 
 ```text
 ~/.kiro/skills/
-```
-
----
-
-### `.kiro/hooks`
-
-Contém hooks do Kiro.
-
-Atualmente:
-
-```text
-.kiro/hooks/track-file-change.json
-```
-
-Esse hook chama o script `track-file-change.sh` quando arquivos são salvos no Kiro.
-
-Destino após setup:
-
-```text
-~/.kiro/hooks/track-file-change.json
 ```
 
 ---
@@ -215,11 +176,6 @@ Destino:
 Exemplo:
 
 ```text
-.config/scripts/track-file-change.sh
-  -> ~/.config/scripts/track-file-change.sh
-```
-
-```text
 .config/scripts/config-kiro-opencode.sh
   -> ~/.config/scripts/config-kiro-opencode.sh
 ```
@@ -268,29 +224,6 @@ Exemplo:
 ```text
 .config/skills/skill-review
   -> ~/.kiro/skills/skill-review
-```
-
----
-
-### Hooks do Kiro
-
-Origem:
-
-```text
-.kiro/hooks/*
-```
-
-Destino:
-
-```text
-~/.kiro/hooks/*
-```
-
-Exemplo:
-
-```text
-.kiro/hooks/track-file-change.json
-  -> ~/.kiro/hooks/track-file-change.json
 ```
 
 ---
@@ -345,129 +278,6 @@ Garanta que o script real tenha permissão de execução:
 chmod +x .config/scripts/config-kiro-opencode.sh
 ```
 
-Como o arquivo da raiz é apenas um link simbólico, não é necessário aplicar `chmod` diretamente nele.
-
-Também garanta permissão de execução no script de tracking:
-
-```bash
-chmod +x .config/scripts/track-file-change.sh
-```
-
----
-
-## Script de Tracking de Arquivos
-
-O script principal de tracking é:
-
-```text
-.config/scripts/track-file-change.sh
-```
-
-Após o setup, ele fica acessível em:
-
-```text
-~/.config/scripts/track-file-change.sh
-```
-
-Ele recebe:
-
-```bash
-track-file-change.sh <file_path> <project_dir>
-```
-
-Exemplo:
-
-```bash
-~/.config/scripts/track-file-change.sh "$(pwd)/build.gradle.kts" "$(pwd)"
-```
-
-Esse script grava os dados em:
-
-```text
-<projeto>/.ai/file_changes.sqlite
-```
-
----
-
-## Banco SQLite
-
-Cada projeto monitorado passa a ter uma base local:
-
-```text
-.ai/file_changes.sqlite
-```
-
-Essa base guarda os arquivos modificados durante a sessão.
-
-Tabelas principais:
-
-```text
-changed_files
-file_change_events
-```
-
----
-
-### Tabela `changed_files`
-
-Mantém o último estado conhecido de cada arquivo alterado.
-
-Campos esperados:
-
-```text
-file_path
-project_dir
-first_seen_at
-last_seen_at
-change_count
-git_branch
-git_status
-file_hash
-```
-
----
-
-### Tabela `file_change_events`
-
-Mantém o histórico de eventos de alteração.
-
-Campos esperados:
-
-```text
-id
-file_path
-project_dir
-changed_at
-git_branch
-git_status
-file_hash
-```
-
----
-
-## Consultas Úteis
-
-Listar arquivos alterados recentemente:
-
-```bash
-sqlite3 .ai/file_changes.sqlite \
-  "SELECT file_path, change_count, last_seen_at, git_status FROM changed_files ORDER BY last_seen_at DESC;"
-```
-
-Listar últimos eventos:
-
-```bash
-sqlite3 .ai/file_changes.sqlite \
-  "SELECT changed_at, file_path, git_status FROM file_change_events ORDER BY id DESC LIMIT 20;"
-```
-
-Limpar a base manualmente, se necessário:
-
-```bash
-sqlite3 .ai/file_changes.sqlite \
-  "DELETE FROM changed_files; DELETE FROM file_change_events; VACUUM;"
-```
-
 ---
 
 ## Fluxo de Skills
@@ -488,15 +298,13 @@ skill-git-commit
 
 ## Skill: `skill-logistics-analyst`
 
-Essa skill lê o SQLite e entende logicamente o que foi alterado.
+Essa skill usa o Git para analisar o que foi alterado.
 
 Ela deve:
 
-* consultar `.ai/file_changes.sqlite`
-* usar a tabela `changed_files`
+* usar `git status` e `git diff` para encontrar arquivos modificados
 * analisar os arquivos modificados
 * ignorar arquivos grandes, binários, gerados ou não úteis
-* remover da base os arquivos ignorados
 * gerar um relatório Markdown da análise
 
 Saída esperada:
@@ -514,17 +322,16 @@ Esse relatório descreve:
 * riscos
 * testes recomendados
 * arquivos ignorados
-* limpeza feita na base SQLite
 
 ---
 
 ## Skill: `skill-test-implementation`
 
-Essa skill lê o SQLite e implementa ou incrementa testes para os arquivos de código modificados.
+Essa skill usa o Git e implementa ou incrementa testes para os arquivos de código modificados.
 
 Ela deve:
 
-* consultar `.ai/file_changes.sqlite`
+* usar `git diff --name-only` para encontrar arquivos de produção modificados
 * selecionar apenas arquivos de código de produção
 * procurar testes existentes
 * criar ou melhorar testes
@@ -536,8 +343,6 @@ Ela deve:
 * evitar mocks complexos
 * se o teste ficar complexo demais, adicionar comentário/TODO no arquivo de teste
 
-Essa skill não deve limpar o SQLite.
-
 ---
 
 ## Skill: `skill-review`
@@ -547,32 +352,23 @@ Essa skill faz o review do que foi alterado.
 Ela usa:
 
 ```text
-.ai/file_changes.sqlite
+git diff
 docs/change-analysis/*-change-analysis.md
 ```
 
 Ela deve:
 
-* revisar os arquivos rastreados no SQLite
+* revisar os arquivos modificados no Git
 * usar o relatório da `skill-logistics-analyst` como contexto
 * gerar um relatório Markdown de review
 * classificar achados por severidade
 * apontar riscos, bugs, problemas de teste e manutenção
 * depois de gerar o review, apagar o relatório anterior da análise
-* zerar as tabelas do SQLite
 
 Saída esperada:
 
 ```text
 docs/reviews/YYYY-MM-DD-HHMM-skill-review.md
-```
-
-Após gerar o relatório, ela deve limpar:
-
-```sql
-DELETE FROM changed_files;
-DELETE FROM file_change_events;
-VACUUM;
 ```
 
 ---
@@ -615,13 +411,11 @@ O push deve ser feito manualmente pela pessoa.
 Durante o desenvolvimento:
 
 ```text
-1. Salvar arquivos no editor
-2. Hook/File Watcher registra arquivos no SQLite
-3. Rodar skill-logistics-analyst
-4. Rodar skill-test-implementation
-5. Rodar skill-review
-6. Rodar skill-git-commit
-7. Fazer push manualmente
+1. Rodar skill-logistics-analyst
+2. Rodar skill-test-implementation
+3. Rodar skill-review
+4. Rodar skill-git-commit
+5. Fazer push manualmente
 ```
 
 Exemplo no OpenCode:
@@ -650,30 +444,6 @@ Use the skill-git-commit skill.
 
 ---
 
-## Integração com Kiro
-
-O hook do Kiro fica em:
-
-```text
-.kiro/hooks/track-file-change.json
-```
-
-Após o setup, ele é linkado para:
-
-```text
-~/.kiro/hooks/track-file-change.json
-```
-
-Esse hook chama:
-
-```text
-~/.config/scripts/track-file-change.sh
-```
-
-Sempre que um arquivo compatível for salvo.
-
----
-
 ## Integração com OpenCode
 
 As skills são linkadas para:
@@ -695,102 +465,10 @@ Exemplo:
 
 ---
 
-## Integração com IntelliJ
-
-O projeto pode ser usado com File Watchers do IntelliJ.
-
-O objetivo é chamar:
-
-```text
-~/.config/scripts/track-file-change.sh
-```
-
-Sempre que um arquivo for salvo.
-
-Exemplo de chamada esperada:
-
-```bash
-~/.config/scripts/track-file-change.sh "$FilePath$" "$ProjectFileDir$"
-```
-
-Também existe um exemplo em:
-
-```text
-.config/samples/intellij-file-watc.xml
-```
-
----
-
-## Integração com VSCode
-
-No VSCode, o mesmo comportamento pode ser obtido com extensões como:
-
-* Run on Save
-* Trigger Task on Save
-
-Ou com um watcher bash rodando no terminal.
-
-A chamada esperada continua sendo:
-
-```bash
-~/.config/scripts/track-file-change.sh "<arquivo>" "<diretorio-do-projeto>"
-```
-
-Exemplo usando variáveis do VSCode:
-
-```bash
-~/.config/scripts/track-file-change.sh "${file}" "${workspaceFolder}"
-```
-
----
-
-## Integração via Bash Watcher
-
-Também é possível monitorar alterações sem depender do editor.
-
-A ideia é rodar um watcher no terminal que detecta alterações e chama:
-
-```text
-~/.config/scripts/track-file-change.sh
-```
-
-Esse caminho funciona com qualquer editor:
-
-* IntelliJ
-* VSCode
-* Kiro
-* Vim
-* Neovim
-* Terminal
-* Outros editores
-
----
-
-## Arquivos Temporários nos Projetos Monitorados
-
-Projetos monitorados podem gerar:
-
-```text
-.ai/file_changes.sqlite
-docs/change-analysis/
-docs/reviews/
-```
-
-Recomendação de `.gitignore` nos projetos monitorados:
-
-```gitignore
-.ai/
-docs/change-analysis/
-docs/reviews/*-skill-review.md
-```
-
----
-
 ## Segurança
 
 Algumas regras importantes do fluxo:
 
-* o tracking de arquivos não altera código
 * as skills de análise e review não devem alterar código
 * a skill de testes só pode criar ou editar testes
 * a skill de commit nunca deve fazer push
@@ -798,7 +476,6 @@ Algumas regras importantes do fluxo:
 * arquivos grandes, binários ou gerados devem ser ignorados
 * dependências novas de teste não devem ser adicionadas sem confirmação
 * relatórios temporários devem ser removidos pelas skills responsáveis
-* o SQLite deve ser tratado como contexto temporário de sessão
 
 ---
 
@@ -819,19 +496,6 @@ ls -la ~/.kiro/skills
 ls -la ~/.kiro/hooks
 ```
 
-Teste o tracking manualmente dentro de um projeto qualquer:
-
-```bash
-~/.config/scripts/track-file-change.sh "$(pwd)/README.md" "$(pwd)"
-```
-
-Depois confira o SQLite:
-
-```bash
-sqlite3 .ai/file_changes.sqlite \
-  "SELECT file_path, change_count, last_seen_at FROM changed_files ORDER BY last_seen_at DESC;"
-```
-
 ---
 
 ## Troubleshooting
@@ -842,7 +506,6 @@ Verifique permissão:
 
 ```bash
 chmod +x .config/scripts/config-kiro-opencode.sh
-chmod +x .config/scripts/track-file-change.sh
 ```
 
 ---
@@ -866,22 +529,6 @@ Rode:
 ```
 
 O script deve mover arquivos existentes para backup antes de substituir.
-
----
-
-### O SQLite não foi criado
-
-Teste manualmente:
-
-```bash
-~/.config/scripts/track-file-change.sh "$(pwd)/README.md" "$(pwd)"
-```
-
-Depois verifique:
-
-```bash
-ls -la .ai/
-```
 
 ---
 
