@@ -1,0 +1,1 @@
+.config/scripts/config-kiro-opencode.sh

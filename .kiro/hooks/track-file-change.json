@@ -1,0 +1,17 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "track-file-change",
+      "description": "Track saved source/config/documentation files into the local SQLite change database.",
+      "trigger": "PostFileSave",
+      "matcher": "\\.(kt|kts|java|groovy|gradle|xml|properties|yml|yaml|json|md|sh|py|js|ts|tsx|jsx|go|rs)$",
+      "action": {
+        "type": "command",
+        "command": "$HOME/.skill/scripts/track-file-change.sh \"{{filePath}}\" \"$PWD\""
+      },
+      "timeout": 10,
+      "enabled": true
+    }
+  ]
+}
